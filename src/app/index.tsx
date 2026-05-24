@@ -21,7 +21,6 @@ import {
   Pause, 
   SkipForward, 
   SkipBack, 
-  Volume2, 
   Smartphone, 
   RefreshCw, 
   Music, 
@@ -163,7 +162,6 @@ export default function HomeScreen() {
   const [libraryTab, setLibraryTab] = useState<'faixas' | 'albuns' | 'artistas' | 'pastas'>('faixas');
   const [showPlayerOverlay, setShowPlayerOverlay] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [showVolumePopup, setShowVolumePopup] = useState(false);
   const [contextTrack, setContextTrack] = useState<Track | null>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -806,14 +804,6 @@ export default function HomeScreen() {
           </ScrollView>
         )}
 
-        {showVolumePopup && (
-          <TouchableOpacity 
-            style={styles.volumeBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowVolumePopup(false)}
-          />
-        )}
-
         {/* Sleek Floating Glassmorphic Bottom Player Capsule (PC Desktop Cohesive Layout) */}
         <View style={styles.anchoredPlayerDeck}>
           
@@ -922,40 +912,8 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Right: Volume icon that toggles the vertical volume popup */}
-            <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'center', position: 'relative' }}>
-              <TouchableOpacity 
-                style={styles.playerControlBtn} 
-                onPress={() => setShowVolumePopup(!showVolumePopup)}
-                activeOpacity={0.7}
-              >
-                <Volume2 size={18} color="#94A3B8" />
-              </TouchableOpacity>
-
-              {/* Vertical Volume Slider Popup */}
-              {showVolumePopup && (
-                <View style={styles.volumePopup}>
-                  <View
-                    style={styles.verticalVolumeTrack}
-                    onTouchStart={(e) => {
-                      const clickY = e.nativeEvent.locationY;
-                      const ratio = Math.max(0, Math.min(1, 1 - (clickY / 80)));
-                      setVolume(ratio);
-                    }}
-                    onTouchMove={(e) => {
-                      const clickY = e.nativeEvent.locationY;
-                      const ratio = Math.max(0, Math.min(1, 1 - (clickY / 80)));
-                      setVolume(ratio);
-                    }}
-                  >
-                    <View style={styles.verticalVolumeBg} pointerEvents="none">
-                      <View style={[styles.verticalVolumeFill, { height: `${volume * 100}%` }]} />
-                      <View style={[styles.verticalVolumeThumb, { bottom: `${Math.max(0, Math.min(94, volume * 100))}%`, marginBottom: -4 }]} />
-                    </View>
-                  </View>
-                </View>
-              )}
-            </View>
+            {/* Right side: Balanced blank space to center controls */}
+            <View style={{ flex: 1 }} />
           </View>
         </View>
       </View>
