@@ -139,9 +139,39 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const savedTracks = await AsyncStorage.getItem('soundsync_library_tracks');
 
       if (savedToken && savedDevice && savedUrl) {
+        const parsedDevice = JSON.parse(savedDevice);
         setSessionToken(savedToken);
-        setDevice(JSON.parse(savedDevice));
         setServerUrl(savedUrl);
+        setDevice({ ...parsedDevice, status: 'connecting' });
+
+        // Actively verify connection to local server in the background
+        setTimeout(async () => {
+          try {
+            console.log(`[Auto-Reconnect] Verificando conexão LAN com o PC: ${savedUrl}`);
+            const response = await fetch(`${savedUrl}/api/tracks`, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${savedToken}` }
+            });
+
+            if (response.ok) {
+              console.log("[Auto-Reconnect] Sincronização automática reestabelecida com sucesso!");
+              setDevice({ ...parsedDevice, status: 'connected' });
+            } else if (response.status === 401) {
+              console.warn("[Auto-Reconnect] Token expirado ou PIN redefinido. Limpando pareamento obsoleto.");
+              setDevice(null);
+              setSessionToken(null);
+              setServerUrl('');
+              await AsyncStorage.removeItem('soundsync_token');
+              await AsyncStorage.removeItem('soundsync_device');
+              await AsyncStorage.removeItem('soundsync_server_url');
+            } else {
+              setDevice({ ...parsedDevice, status: 'disconnected' });
+            }
+          } catch (err) {
+            console.log("[Auto-Reconnect] Computador offline ou em outra rede Wi-Fi. Mantendo cache para reconexão futura.");
+            setDevice({ ...parsedDevice, status: 'disconnected' });
+          }
+        }, 300);
       }
 
       if (savedTracks) {
