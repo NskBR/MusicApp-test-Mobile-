@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Paths } from 'expo-file-system';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
@@ -492,14 +493,26 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let storageTotalGB = 128.0;
     let storageUsedGB = 42.5;
     try {
-      const totalBytes = await FileSystem.getTotalDiskCapacityAsync();
-      const freeBytes = await FileSystem.getFreeDiskStorageAsync();
-      const totalGB = totalBytes / (1024 * 1024 * 1024);
-      const freeGB = freeBytes / (1024 * 1024 * 1024);
-      
-      storageTotalGB = parseFloat(totalGB.toFixed(1));
-      storageUsedGB = parseFloat((totalGB - freeGB).toFixed(1));
-      console.log(`[Storage Sync] Encontrado espaço Total: ${storageTotalGB}GB, Usado: ${storageUsedGB}GB`);
+      // Primary attempt: Use modern Expo SDK 54 Paths API (sync getters, extremely reliable)
+      const totalSpace = Paths.totalDiskSpace;
+      const freeSpace = Paths.availableDiskSpace;
+      if (totalSpace && totalSpace > 0) {
+        const totalGB = totalSpace / (1024 * 1024 * 1024);
+        const freeGB = freeSpace / (1024 * 1024 * 1024);
+        storageTotalGB = parseFloat(totalGB.toFixed(1));
+        storageUsedGB = parseFloat((totalGB - freeGB).toFixed(1));
+        console.log(`[Storage Sync] Paths API success: Total=${storageTotalGB}GB, Used=${storageUsedGB}GB`);
+      } else {
+        // Fallback: Use legacy FileSystem methods if Paths API returned 0 or undefined
+        const totalBytes = await FileSystem.getTotalDiskCapacityAsync();
+        const freeBytes = await FileSystem.getFreeDiskStorageAsync();
+        const totalGB = totalBytes / (1024 * 1024 * 1024);
+        const freeGB = freeBytes / (1024 * 1024 * 1024);
+        
+        storageTotalGB = parseFloat(totalGB.toFixed(1));
+        storageUsedGB = parseFloat((totalGB - freeGB).toFixed(1));
+        console.log(`[Storage Sync] Legacy API success: Total=${storageTotalGB}GB, Used=${storageUsedGB}GB`);
+      }
     } catch (e) {
       console.warn("Falha ao recuperar espaço em disco via FileSystem:", e);
     }
