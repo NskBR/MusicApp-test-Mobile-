@@ -215,36 +215,89 @@ export default function HomeScreen() {
     }
   };
 
-  // Track play count and save to AsyncStorage
-  useEffect(() => {
-    if (currentTrack && currentTrack.id !== 'placeholder') {
-      const incrementPlayCount = async () => {
-        try {
-          const storedCounts = await AsyncStorage.getItem('soundsync_play_counts');
-          const counts = storedCounts ? JSON.parse(storedCounts) : {};
-          const trackId = currentTrack.id;
-          counts[trackId] = (counts[trackId] || 0) + 1;
-          await AsyncStorage.setItem('soundsync_play_counts', JSON.stringify(counts));
-          setPlayCounts(counts);
+  const lastPositionRef = useRef(0);
+  const currentTrackIdRef = useRef<string | null>(null);
+  const accumulatedSecondsRef = useRef(0);
 
-          // Add play session log
-          const storedSessions = await AsyncStorage.getItem('soundsync_play_sessions');
-          const sessions = storedSessions ? JSON.parse(storedSessions) : [];
-          const newSession = {
-            trackId: currentTrack.id,
-            timestamp: Date.now(),
-            duration: currentTrack.duration || 210
-          };
-          sessions.push(newSession);
-          await AsyncStorage.setItem('soundsync_play_sessions', JSON.stringify(sessions));
-          setPlaySessions(sessions);
-        } catch (e) {
-          console.error("Failed to update play count:", e);
-        }
-      };
-      incrementPlayCount();
+  // Track listening time in real-time by observing playbackPosition deltas
+  useEffect(() => {
+    if (!currentTrack || currentTrack.id === 'placeholder') {
+      // If no track is playing, save active session and reset
+      if (currentTrackIdRef.current && accumulatedSecondsRef.current > 0) {
+        saveListenSession(currentTrackIdRef.current, accumulatedSecondsRef.current);
+      }
+      currentTrackIdRef.current = null;
+      accumulatedSecondsRef.current = 0;
+      lastPositionRef.current = 0;
+      return;
     }
-  }, [currentTrack]);
+
+    const trackId = currentTrack.id;
+
+    // If track changed, save the previous track session first!
+    if (currentTrackIdRef.current !== trackId) {
+      if (currentTrackIdRef.current && accumulatedSecondsRef.current > 0) {
+        saveListenSession(currentTrackIdRef.current, accumulatedSecondsRef.current);
+      }
+      currentTrackIdRef.current = trackId;
+      accumulatedSecondsRef.current = 0;
+      lastPositionRef.current = playbackPosition;
+      return;
+    }
+
+    // Calculate position delta
+    if (isPlaying) {
+      const deltaMs = playbackPosition - lastPositionRef.current;
+      // Filter out seeking (jumps > 2.5 seconds or negative)
+      if (deltaMs > 0 && deltaMs < 2500) {
+        accumulatedSecondsRef.current += deltaMs / 1000;
+      }
+    }
+    
+    lastPositionRef.current = playbackPosition;
+  }, [playbackPosition, isPlaying, currentTrack]);
+
+  // Helper to save a completed listen session
+  const saveListenSession = async (trackId: string, seconds: number) => {
+    if (seconds < 1) return; // Ignore sessions shorter than 1 second
+    
+    try {
+      const roundedSeconds = Math.round(seconds);
+      const storedSessions = await AsyncStorage.getItem('soundsync_play_sessions');
+      const sessions = storedSessions ? JSON.parse(storedSessions) : [];
+      
+      const newSession = {
+        trackId,
+        timestamp: Date.now(),
+        duration: roundedSeconds // Store actual listened seconds!
+      };
+      
+      sessions.push(newSession);
+      await AsyncStorage.setItem('soundsync_play_sessions', JSON.stringify(sessions));
+      setPlaySessions(sessions);
+      
+      // Update play counts based on actual sessions
+      // (a track is counted as played if listened for at least 15 seconds)
+      if (roundedSeconds >= 15) {
+        const storedCounts = await AsyncStorage.getItem('soundsync_play_counts');
+        const counts = storedCounts ? JSON.parse(storedCounts) : {};
+        counts[trackId] = (counts[trackId] || 0) + 1;
+        await AsyncStorage.setItem('soundsync_play_counts', JSON.stringify(counts));
+        setPlayCounts(counts);
+      }
+    } catch (e) {
+      console.error("Failed to save listen session:", e);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      // Save any pending session when component unmounts
+      if (currentTrackIdRef.current && accumulatedSecondsRef.current > 0) {
+        saveListenSession(currentTrackIdRef.current, accumulatedSecondsRef.current);
+      }
+    };
+  }, []);
 
   const getMostPlayed = () => {
     const playedTracks = libraryTracks.filter(t => (playCounts[t.id] || 0) > 0);
