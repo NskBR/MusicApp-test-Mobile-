@@ -46,6 +46,10 @@ interface AudioContextType {
   seekAudio: (positionMs: number) => Promise<void>;
   skipTrack: (direction: 'next' | 'prev') => void;
   setVolume: (vol: number) => Promise<void>;
+  isShuffle: boolean;
+  toggleShuffle: () => void;
+  repeatMode: 'off' | 'all' | 'one';
+  toggleRepeatMode: () => void;
   
   // Local Scanner
   scanLocalFolder: () => Promise<void>;
@@ -91,6 +95,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isPairing, setIsPairing] = useState(false);
   const [transferQueue, setTransferQueue] = useState<TransferTask[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Shuffle and Repeat States
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
+
+  const isShuffleRef = useRef(isShuffle);
+  isShuffleRef.current = isShuffle;
+  const repeatModeRef = useRef(repeatMode);
+  repeatModeRef.current = repeatMode;
 
   // Audio sound object ref
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -165,7 +178,14 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       if (status.didJustFinish && !status.isLooping) {
-        skipTrack('next');
+        if (repeatModeRef.current === 'one') {
+          // Loop current track
+          if (soundRef.current) {
+            soundRef.current.setStatusAsync({ positionMillis: 0, shouldPlay: true }).catch(() => {});
+          }
+        } else {
+          skipTrack('next');
+        }
       }
     }
   };
@@ -242,11 +262,44 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const currentIndex = tracks.findIndex(t => t.id === current.id);
     let nextIndex = 0;
 
-    if (currentIndex !== -1) {
-      if (direction === 'next') {
-        nextIndex = (currentIndex + 1) % tracks.length;
+    if (isShuffleRef.current) {
+      if (tracks.length > 1) {
+        let randomIndex = currentIndex;
+        while (randomIndex === currentIndex) {
+          randomIndex = Math.floor(Math.random() * tracks.length);
+        }
+        nextIndex = randomIndex;
       } else {
-        nextIndex = (currentIndex - 1 + tracks.length) % tracks.length;
+        nextIndex = 0;
+      }
+    } else {
+      if (currentIndex !== -1) {
+        if (direction === 'next') {
+          if (currentIndex === tracks.length - 1) {
+            if (repeatModeRef.current === 'all') {
+              nextIndex = 0;
+            } else {
+              // End of playlist and repeat is off: pause playback
+              setIsPlaying(false);
+              if (soundRef.current) {
+                soundRef.current.pauseAsync().catch(() => {});
+              }
+              return;
+            }
+          } else {
+            nextIndex = currentIndex + 1;
+          }
+        } else {
+          if (currentIndex === 0) {
+            if (repeatModeRef.current === 'all') {
+              nextIndex = tracks.length - 1;
+            } else {
+              nextIndex = 0;
+            }
+          } else {
+            nextIndex = currentIndex - 1;
+          }
+        }
       }
     }
 
@@ -261,6 +314,24 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         await soundRef.current.setVolumeAsync(clampedVol);
       } catch (e) {}
     }
+  };
+
+  const toggleShuffle = () => {
+    setIsShuffle(prev => {
+      const next = !prev;
+      isShuffleRef.current = next;
+      return next;
+    });
+  };
+
+  const toggleRepeatMode = () => {
+    setRepeatMode(prev => {
+      let next: 'off' | 'all' | 'one' = 'off';
+      if (prev === 'off') next = 'all';
+      else if (prev === 'all') next = 'one';
+      repeatModeRef.current = next;
+      return next;
+    });
   };
 
   // 4. File Folder Scanner
@@ -576,6 +647,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         seekAudio,
         skipTrack,
         setVolume,
+        isShuffle,
+        toggleShuffle,
+        repeatMode,
+        toggleRepeatMode,
         scanLocalFolder,
         isScanning,
         device,

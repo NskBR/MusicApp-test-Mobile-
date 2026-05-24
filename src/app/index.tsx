@@ -47,6 +47,7 @@ import {
   ListMusic,
   FileText,
   Repeat,
+  Repeat1,
   MoreVertical,
   PenLine,
   PlayCircle,
@@ -151,6 +152,10 @@ export default function HomeScreen() {
     isSyncing, 
     pullTransfersFromPC,
     deleteTrack,
+    isShuffle,
+    toggleShuffle,
+    repeatMode,
+    toggleRepeatMode,
   } = useAudio();
 
   const [activeTab, setActiveTab] = useState<'inicio' | 'biblioteca' | 'opcoes'>('inicio');
@@ -875,8 +880,12 @@ export default function HomeScreen() {
           <View style={styles.deckBottomRow}>
             {/* Left side: Shuffle button to balance */}
             <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center' }}>
-              <TouchableOpacity style={styles.playerControlBtn} activeOpacity={0.7}>
-                <Shuffle size={18} color="#94A3B8" />
+              <TouchableOpacity 
+                style={styles.playerControlBtn} 
+                onPress={toggleShuffle}
+                activeOpacity={0.7}
+              >
+                <Shuffle size={18} color={isShuffle ? "#8B5CF6" : "#94A3B8"} />
               </TouchableOpacity>
             </View>
 
@@ -1215,8 +1224,16 @@ export default function HomeScreen() {
 
               {/* Controls Player Tray (Repeat, ChevronLeft, circular Play, ChevronRight, Shuffle) */}
               <View style={styles.playerControlsTray}>
-                <TouchableOpacity style={styles.extraControlBtn}>
-                  <Repeat size={20} color="#94A3B8" />
+                <TouchableOpacity 
+                  style={styles.extraControlBtn} 
+                  onPress={toggleRepeatMode}
+                  activeOpacity={0.7}
+                >
+                  {repeatMode === 'one' ? (
+                    <Repeat1 size={20} color="#8B5CF6" />
+                  ) : (
+                    <Repeat size={20} color={repeatMode === 'all' ? "#8B5CF6" : "#94A3B8"} />
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -1245,8 +1262,12 @@ export default function HomeScreen() {
                   <ChevronRight size={24} color="#FFF" />
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.extraControlBtn}>
-                  <Shuffle size={20} color="#94A3B8" />
+                <TouchableOpacity 
+                  style={styles.extraControlBtn} 
+                  onPress={toggleShuffle}
+                  activeOpacity={0.7}
+                >
+                  <Shuffle size={20} color={isShuffle ? "#8B5CF6" : "#94A3B8"} />
                 </TouchableOpacity>
               </View>
 
