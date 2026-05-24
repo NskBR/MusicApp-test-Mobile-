@@ -179,6 +179,7 @@ export default function HomeScreen() {
   // Favorites and Play counts tracking
   const [favorites, setFavorites] = useState<string[]>([]);
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
+  const [playSessions, setPlaySessions] = useState<any[]>([]);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -190,6 +191,10 @@ export default function HomeScreen() {
         const storedCounts = await AsyncStorage.getItem('soundsync_play_counts');
         if (storedCounts) {
           setPlayCounts(JSON.parse(storedCounts));
+        }
+        const storedSessions = await AsyncStorage.getItem('soundsync_play_sessions');
+        if (storedSessions) {
+          setPlaySessions(JSON.parse(storedSessions));
         }
       } catch (e) {
         console.error("Failed to load user data:", e);
@@ -221,6 +226,18 @@ export default function HomeScreen() {
           counts[trackId] = (counts[trackId] || 0) + 1;
           await AsyncStorage.setItem('soundsync_play_counts', JSON.stringify(counts));
           setPlayCounts(counts);
+
+          // Add play session log
+          const storedSessions = await AsyncStorage.getItem('soundsync_play_sessions');
+          const sessions = storedSessions ? JSON.parse(storedSessions) : [];
+          const newSession = {
+            trackId: currentTrack.id,
+            timestamp: Date.now(),
+            duration: currentTrack.duration || 210
+          };
+          sessions.push(newSession);
+          await AsyncStorage.setItem('soundsync_play_sessions', JSON.stringify(sessions));
+          setPlaySessions(sessions);
         } catch (e) {
           console.error("Failed to update play count:", e);
         }
@@ -239,6 +256,68 @@ export default function HomeScreen() {
 
   const getFavorites = () => {
     return libraryTracks.filter(t => favorites.includes(t.id)).slice(0, 5);
+  };
+
+  const getStats = () => {
+    const totalTracks = libraryTracks.length;
+    
+    // Total played since ever (unique tracks played)
+    const playedEverTracks = libraryTracks.filter(t => (playCounts[t.id] || 0) > 0);
+    const totalPlayedEver = playedEverTracks.length;
+    
+    // Never played
+    const totalNeverPlayed = libraryTracks.filter(t => !(playCounts[t.id] || 0)).length;
+    
+    // Total time since ever
+    const totalTimeSeconds = playSessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+    
+    // Filtering for this month (last 30 days)
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const monthlySessions = playSessions.filter(s => s.timestamp >= thirtyDaysAgo);
+    
+    // Monthly unique tracks played
+    const monthlyUniqueIds = new Set(monthlySessions.map(s => s.trackId));
+    // Make sure they still exist in library
+    const libraryTrackIds = new Set(libraryTracks.map(t => t.id));
+    const monthlyTracksPlayed = Array.from(monthlyUniqueIds).filter(id => libraryTrackIds.has(id)).length;
+    
+    // Monthly time
+    const monthlyTimeSeconds = monthlySessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+    const monthlyHours = (monthlyTimeSeconds / 3600).toFixed(1);
+    
+    // Format helper for total time
+    const formatTotalTime = (seconds: number) => {
+      if (seconds === 0) return '0 minutos';
+      
+      const days = Math.floor(seconds / 86400);
+      const remainingAfterDays = seconds % 86400;
+      const hours = Math.floor(remainingAfterDays / 3600);
+      const remainingAfterHours = remainingAfterDays % 3600;
+      const minutes = Math.round(remainingAfterHours / 60);
+      
+      if (seconds >= 86400) {
+        let result = `${days} ${days === 1 ? 'dia' : 'dias'}`;
+        if (hours > 0) result += `, ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+        if (minutes > 0) result += ` e ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+        return result;
+      } else {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.round((seconds % 3600) / 60);
+        if (h > 0) {
+          return `${h} ${h === 1 ? 'hora' : 'horas'}${m > 0 ? ` e ${m} ${m === 1 ? 'minuto' : 'minutos'}` : ''}`;
+        }
+        return `${m} ${m === 1 ? 'minuto' : 'minutos'}`;
+      }
+    };
+    
+    return {
+      totalTracks,
+      totalPlayedEver,
+      totalNeverPlayed,
+      totalTimeFormatted: formatTotalTime(totalTimeSeconds),
+      monthlyTracksPlayed,
+      monthlyHours
+    };
   };
 
   const sidebarWidth = width * 0.8;
@@ -636,23 +715,53 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* Monitor Folder status */}
-            <View style={[styles.glassPanel, { marginTop: 24, marginBottom: 12 }]}>
-              <View style={styles.infoTitleRow}>
-                <FolderOpen size={16} color="#8B5CF6" />
-                <Text style={styles.infoTitleText}>Diretório Local Monitorado</Text>
+            {/* ESTATÍSTICAS Dashboard */}
+            <View style={[styles.glassPanel, { marginTop: 24, marginBottom: 12, padding: 18 }]}>
+              <View style={[styles.infoTitleRow, { marginBottom: 16 }]}>
+                <Sliders size={18} color="#8B5CF6" />
+                <Text style={[styles.infoTitleText, { fontSize: 13, letterSpacing: 1 }]}>ESTATÍSTICAS DE REPRODUÇÃO</Text>
               </View>
-              <Text style={styles.infoPathText}>
-                {MUSIC_DIR.replace(FileSystem.documentDirectory || '', 'Interno://')}
-              </Text>
-              <TouchableOpacity style={styles.refreshFolderBtn} onPress={scanLocalFolder} disabled={isScanning}>
-                {isScanning ? <ActivityIndicator size="small" color="#FFF" /> : (
-                  <>
-                    <RefreshCw size={14} color="#FFF" />
-                    <Text style={styles.refreshFolderBtnText}>Atualizar Pasta Local</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+
+              {/* Grid of Stats */}
+              <View style={{ gap: 14 }}>
+                {/* Row 1 */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+                  <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: 'bold' }}>TOTAL DE FAIXAS</Text>
+                    <Text style={{ fontSize: 16, color: '#FFF', fontWeight: 'bold', marginTop: 4 }}>{getStats().totalTracks}</Text>
+                  </View>
+                  <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: 'bold' }}>NUNCA TOCADAS</Text>
+                    <Text style={{ fontSize: 16, color: '#EF4444', fontWeight: 'bold', marginTop: 4 }}>{getStats().totalNeverPlayed}</Text>
+                  </View>
+                </View>
+
+                {/* Row 2 */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+                  <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: 'bold' }}>TOCADAS NO MÊS</Text>
+                    <Text style={{ fontSize: 16, color: '#8B5CF6', fontWeight: 'bold', marginTop: 4 }}>{getStats().monthlyTracksPlayed} faixas</Text>
+                  </View>
+                  <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: 'bold' }}>TEMPO NO MÊS</Text>
+                    <Text style={{ fontSize: 16, color: '#8B5CF6', fontWeight: 'bold', marginTop: 4 }}>{getStats().monthlyHours} hrs</Text>
+                  </View>
+                </View>
+
+                {/* Row 3 */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+                  <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: 'bold' }}>TOCADAS DESDE SEMPRE</Text>
+                    <Text style={{ fontSize: 16, color: '#10B981', fontWeight: 'bold', marginTop: 4 }}>{getStats().totalPlayedEver} faixas</Text>
+                  </View>
+                </View>
+
+                {/* Row 4: Total played time */}
+                <View style={{ padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.02)', width: '100%' }}>
+                  <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: 'bold' }}>TEMPO TOTAL DE REPRODUÇÃO</Text>
+                  <Text style={{ fontSize: 13, color: '#A78BFA', fontWeight: 'bold', marginTop: 4 }}>{getStats().totalTimeFormatted}</Text>
+                </View>
+              </View>
             </View>
 
           </ScrollView>
@@ -893,6 +1002,25 @@ export default function HomeScreen() {
                 <Text style={styles.infoLabel}>Diretório de Música</Text>
                 <Text style={styles.infoVal}>SoundSync Local Folder</Text>
               </View>
+            </View>
+
+            {/* Monitor Folder status moved to Options */}
+            <View style={[styles.glassPanel, { marginTop: 12, marginBottom: 24 }]}>
+              <View style={styles.infoTitleRow}>
+                <FolderOpen size={16} color="#8B5CF6" />
+                <Text style={styles.infoTitleText}>Diretório Local Monitorado</Text>
+              </View>
+              <Text style={styles.infoPathText}>
+                {MUSIC_DIR.replace(FileSystem.documentDirectory || '', 'Interno://')}
+              </Text>
+              <TouchableOpacity style={styles.refreshFolderBtn} onPress={scanLocalFolder} disabled={isScanning}>
+                {isScanning ? <ActivityIndicator size="small" color="#FFF" /> : (
+                  <>
+                    <RefreshCw size={14} color="#FFF" />
+                    <Text style={styles.refreshFolderBtnText}>Atualizar Pasta Local</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           </ScrollView>
         )}
