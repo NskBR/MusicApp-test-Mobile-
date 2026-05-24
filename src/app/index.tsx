@@ -232,6 +232,72 @@ export default function HomeScreen() {
     }
   }, [showPlayerOverlay]);
 
+  // Cover Scale and Ambient Glow animations for maximized player
+  const coverScaleAnim = useRef(new Animated.Value(1)).current;
+  const glowScaleAnim = useRef(new Animated.Value(1)).current;
+  const glowOpacityAnim = useRef(new Animated.Value(0.7)).current;
+
+  useEffect(() => {
+    let coverPulse: Animated.CompositeAnimation | null = null;
+    let glowPulse: Animated.CompositeAnimation | null = null;
+
+    if (isPlaying && showPlayerOverlay) {
+      // 1. Cover zoom pulse animation (rhythmic pacing)
+      coverPulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(coverScaleAnim, {
+            toValue: 1.025,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(coverScaleAnim, {
+            toValue: 1.0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      coverPulse.start();
+
+      // 2. Ambient glow ambient pulse (slower and wider aura)
+      glowPulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowScaleAnim, {
+            toValue: 1.12,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowOpacityAnim, {
+            toValue: 0.95,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowScaleAnim, {
+            toValue: 0.9,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowOpacityAnim, {
+            toValue: 0.7,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      glowPulse.start();
+    } else {
+      // Stop and reset all animations smoothly
+      coverScaleAnim.setValue(1);
+      glowScaleAnim.setValue(1);
+      glowOpacityAnim.setValue(0.7);
+    }
+
+    return () => {
+      if (coverPulse) coverPulse.stop();
+      if (glowPulse) glowPulse.stop();
+    };
+  }, [isPlaying, showPlayerOverlay]);
+
   // Format position & duration (e.g. 132431 ms -> 2:12)
   const formatTime = (millis: number) => {
     if (isNaN(millis) || millis <= 0) return '0:00';
@@ -1073,15 +1139,47 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Large Square Cover Art */}
+              {/* Large Square Cover Art with Ambient Glow & Beat Pulse */}
               <View style={styles.coverSection}>
-                <View style={styles.coverFrame}>
+                <Animated.View
+                  style={[
+                    styles.ambientGlowPurple,
+                    {
+                      transform: [
+                        { scale: glowScaleAnim },
+                        { translateY: -8 }
+                      ],
+                      opacity: glowOpacityAnim,
+                    }
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.ambientGlowBlue,
+                    {
+                      transform: [
+                        { scale: glowScaleAnim },
+                        { translateY: 8 }
+                      ],
+                      opacity: glowOpacityAnim,
+                    }
+                  ]}
+                />
+
+                <Animated.View 
+                  style={[
+                    styles.coverFrame,
+                    {
+                      transform: [{ scale: coverScaleAnim }]
+                    }
+                  ]}
+                >
                   <Image 
                     source={{ uri: currentTrack.artworkUrl }} 
                     style={styles.largeCoverArt}
                     defaultSource={require('@/assets/images/react-logo.png')}
                   />
-                </View>
+                </Animated.View>
               </View>
 
               {/* Metadata Details (Left-aligned as in the print) */}
@@ -2418,6 +2516,38 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginBottom: 10,
     paddingHorizontal: 8,
+  },
+  ambientGlowPurple: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(139, 92, 246, 0.25)',
+    top: '50%',
+    left: '50%',
+    marginTop: -130,
+    marginLeft: -130,
+    pointerEvents: 'none',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.85,
+    shadowRadius: 55,
+    elevation: 20,
+  },
+  ambientGlowBlue: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    top: '50%',
+    left: '50%',
+    marginTop: -130,
+    marginLeft: -130,
+    pointerEvents: 'none',
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.85,
+    shadowRadius: 55,
+    elevation: 20,
   },
   bottomNavToolbar: {
     position: 'absolute',
