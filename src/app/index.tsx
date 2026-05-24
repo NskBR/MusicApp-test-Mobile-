@@ -181,6 +181,26 @@ export default function HomeScreen() {
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
   const [playSessions, setPlaySessions] = useState<any[]>([]);
 
+  // State for dragging progress bar smoothly
+  const [dragProgress, setDragProgress] = useState<number | null>(null);
+
+  const handleProgressTouch = (e: any) => {
+    const pageX = e.nativeEvent.pageX;
+    const barLeft = 55; // Left margin offset of the progress bar track
+    const barWidth = width - 110; // Dynamic width of the progress bar
+    const ratio = Math.max(0, Math.min(1, (pageX - barLeft) / barWidth));
+    setDragProgress(ratio * 100);
+  };
+
+  const handleProgressTouchEnd = (e: any) => {
+    const pageX = e.nativeEvent.pageX;
+    const barLeft = 55;
+    const barWidth = width - 110;
+    const ratio = Math.max(0, Math.min(1, (pageX - barLeft) / barWidth));
+    seekAudio(ratio * playbackDuration);
+    setDragProgress(null); // Return tracking to natural playbackPosition
+  };
+
   useEffect(() => {
     const loadUserData = async () => {
       try {
@@ -1453,21 +1473,17 @@ export default function HomeScreen() {
               <View style={styles.seekSliderContainer}>
                 <Text style={styles.durationLabelText}>{formatTime(playbackPosition)}</Text>
                 
-                <TouchableOpacity 
+                <View 
                   style={styles.modalProgressBarTrack}
-                  activeOpacity={1}
-                  onPress={(e) => {
-                    const clickX = e.nativeEvent.locationX;
-                    const estimatedWidth = width - 110; 
-                    const ratio = Math.max(0, Math.min(1, clickX / estimatedWidth));
-                    seekAudio(ratio * playbackDuration);
-                  }}
+                  onTouchStart={handleProgressTouch}
+                  onTouchMove={handleProgressTouch}
+                  onTouchEnd={handleProgressTouchEnd}
                 >
                   <View style={styles.modalProgressBarBg}>
-                    <View style={[styles.modalProgressBarFill, { width: `${playbackProgress}%` }]} />
-                    <View style={[styles.modalProgressThumb, { left: `${Math.max(0, Math.min(98, playbackProgress))}%` }]} />
+                    <View style={[styles.modalProgressBarFill, { width: `${dragProgress !== null ? dragProgress : playbackProgress}%` }]} />
+                    <View style={[styles.modalProgressThumb, { left: `${Math.max(0, Math.min(98, dragProgress !== null ? dragProgress : playbackProgress))}%` }]} />
                   </View>
-                </TouchableOpacity>
+                </View>
 
                 <Text style={styles.durationLabelText}>
                   {activeTrack.id === 'placeholder' ? '2:58' : formatTime(playbackDuration)}
