@@ -184,6 +184,15 @@ export default function HomeScreen() {
   // State for dragging progress bar smoothly
   const [dragProgress, setDragProgress] = useState<number | null>(null);
 
+  // Active settings section
+  const [activeSettingsSection, setActiveSettingsSection] = useState<'menu' | 'perfil' | 'conexao' | 'arquivos' | 'sistema'>('menu');
+
+  useEffect(() => {
+    if (activeTab !== 'opcoes') {
+      setActiveSettingsSection('menu');
+    }
+  }, [activeTab]);
+
   const handleProgressTouch = (e: any) => {
     const pageX = e.nativeEvent.pageX;
     const barLeft = 55; // Left margin offset of the progress bar track
@@ -916,185 +925,319 @@ export default function HomeScreen() {
 
         {activeTab === 'opcoes' && (
           <ScrollView contentContainerStyle={styles.scrollContent}>
-            <View style={styles.header}>
-              <View>
-                <Text style={styles.headerTitle}>Opções e Pareamento</Text>
-                <Text style={styles.headerSubtitle}>Sincronização LAN & Ajustes</Text>
-              </View>
-              <Wifi size={20} color="#6366F1" />
-            </View>
-
-            {/* Connection and Pairing form */}
-            {!device ? (
-              <View style={styles.glassPanel}>
-                <Text style={styles.cardTitle}>Conectar ao PC (Wi-Fi Sync)</Text>
-                <Text style={styles.cardText}>
-                  Digite o IP exibido na aba Dispositivos do seu aplicativo desktop e o código PIN de 6 dígitos gerado pelo computador para autorizar downloads sem fio.
-                </Text>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Endereço IP do Computador</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Ex: 192.168.1.15"
-                    placeholderTextColor="#475569"
-                    value={pairingIp}
-                    onChangeText={setPairingIp}
-                    keyboardType="default"
-                  />
+            {activeSettingsSection === 'menu' ? (
+              <>
+                <View style={styles.header}>
+                  <View>
+                    <Text style={styles.headerTitle}>Opções e Ajustes</Text>
+                    <Text style={styles.headerSubtitle}>Gerencie suas preferências de sincronização e app</Text>
+                  </View>
+                  <Sliders size={20} color="#8B5CF6" />
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Código PIN do Servidor (6 Dígitos)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Ex: 123 456"
-                    placeholderTextColor="#475569"
-                    value={pairingCode}
-                    onChangeText={setPairingCode}
-                    keyboardType="numeric"
-                    maxLength={7}
-                  />
+                <View style={styles.settingsMenuContainer}>
+                  <TouchableOpacity 
+                    style={styles.settingsMenuItem} 
+                    onPress={() => setActiveSettingsSection('perfil')}
+                  >
+                    <View style={[styles.settingsMenuIconContainer, { borderColor: 'rgba(139, 92, 246, 0.3)', backgroundColor: 'rgba(139, 92, 246, 0.05)' }]}>
+                      <User size={18} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.settingsMenuTextContainer}>
+                      <Text style={styles.settingsMenuTitle}>Perfil do Usuário</Text>
+                      <Text style={styles.settingsMenuSubtitle}>Lucas Alves • Membro Clássico</Text>
+                    </View>
+                    <ChevronRight size={16} color="#475569" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.settingsMenuItem} 
+                    onPress={() => setActiveSettingsSection('conexao')}
+                  >
+                    <View style={[styles.settingsMenuIconContainer, { borderColor: 'rgba(59, 130, 246, 0.3)', backgroundColor: 'rgba(59, 130, 246, 0.05)' }]}>
+                      <Wifi size={18} color="#3B82F6" />
+                    </View>
+                    <View style={styles.settingsMenuTextContainer}>
+                      <Text style={styles.settingsMenuTitle}>Conexão e Pareamento</Text>
+                      <Text style={styles.settingsMenuSubtitle}>
+                        {device ? `Pareado com ${device.name}` : 'Desconectado do PC'}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color="#475569" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.settingsMenuItem} 
+                    onPress={() => setActiveSettingsSection('arquivos')}
+                  >
+                    <View style={[styles.settingsMenuIconContainer, { borderColor: 'rgba(16, 185, 129, 0.3)', backgroundColor: 'rgba(16, 185, 129, 0.05)' }]}>
+                      <FolderOpen size={18} color="#10B981" />
+                    </View>
+                    <View style={styles.settingsMenuTextContainer}>
+                      <Text style={styles.settingsMenuTitle}>Diretório e Arquivos</Text>
+                      <Text style={styles.settingsMenuSubtitle}>Gerenciar caminhos e atualizar faixas</Text>
+                    </View>
+                    <ChevronRight size={16} color="#475569" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.settingsMenuItem} 
+                    onPress={() => setActiveSettingsSection('sistema')}
+                  >
+                    <View style={[styles.settingsMenuIconContainer, { borderColor: 'rgba(245, 158, 11, 0.3)', backgroundColor: 'rgba(245, 158, 11, 0.05)' }]}>
+                      <Info size={18} color="#F59E0B" />
+                    </View>
+                    <View style={styles.settingsMenuTextContainer}>
+                      <Text style={styles.settingsMenuTitle}>Sobre o Sistema</Text>
+                      <Text style={styles.settingsMenuSubtitle}>v1.0.0 (SDK 54) • Android/iOS</Text>
+                    </View>
+                    <ChevronRight size={16} color="#475569" />
+                  </TouchableOpacity>
                 </View>
-
-                {pairingError ? <Text style={styles.errorText}>{pairingError}</Text> : null}
-                {pairingSuccess ? <Text style={styles.successText}>{pairingSuccess}</Text> : null}
-
-                <TouchableOpacity 
-                  style={[styles.pairActionBtn, isPairing && { opacity: 0.7 }]} 
-                  onPress={handlePair}
-                  disabled={isPairing}
-                >
-                  {isPairing ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <>
-                      <Smartphone size={16} color="#FFF" />
-                      <Text style={styles.pairActionBtnText}>Conectar ao Computador</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
+              </>
             ) : (
-              <View style={styles.glassPanel}>
-                <Text style={styles.cardTitle}>Computador Pareado</Text>
-                <View style={styles.deviceStatusRow}>
-                  <View style={styles.deviceIndicatorActive} />
-                  <Text style={styles.pairedDeviceName}>{device.name}</Text>
-                  <Text style={styles.connectionTypeTag}>Wi-Fi LAN</Text>
-                </View>
-                
-                <Text style={styles.deviceIpAddressText}>Endereço IP: {device.ipAddress}</Text>
-
-                <View style={styles.deviceActionBox}>
+              <>
+                <View style={styles.settingsSubHeader}>
                   <TouchableOpacity 
-                    style={[styles.syncDeltaBtn, isSyncing && { opacity: 0.7 }]} 
-                    onPress={pullTransfersFromPC}
-                    disabled={isSyncing}
+                    style={styles.settingsBackButton} 
+                    onPress={() => setActiveSettingsSection('menu')}
                   >
-                    {isSyncing ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <>
-                        <ArrowDownToLine size={16} color="#FFF" />
-                        <Text style={styles.syncDeltaBtnText}>Puxar Músicas Autorizadas</Text>
-                      </>
-                    )}
+                    <ChevronLeft size={16} color="#FFF" />
+                    <Text style={styles.settingsBackButtonText}>Voltar</Text>
                   </TouchableOpacity>
-
-                  <TouchableOpacity 
-                    style={styles.disconnectBtn} 
-                    onPress={disconnectDevice}
-                  >
-                    <Text style={styles.disconnectBtnText}>Remover Conexão</Text>
-                  </TouchableOpacity>
+                  <Text style={styles.settingsSubHeaderTitle}>
+                    {activeSettingsSection === 'perfil' && 'Perfil'}
+                    {activeSettingsSection === 'conexao' && 'Conexão'}
+                    {activeSettingsSection === 'arquivos' && 'Arquivos'}
+                    {activeSettingsSection === 'sistema' && 'Sistema'}
+                  </Text>
                 </View>
-              </View>
-            )}
 
-            {/* Active WiFi File Transfer logs */}
-            {transferQueue.length > 0 && (
-              <View style={styles.glassPanel}>
-                <Text style={styles.cardTitle}>Fila de Transferência Ativa</Text>
-                
-                {transferQueue.map(task => (
-                  <View key={task.id} style={styles.transferRow}>
-                    <View style={styles.transferInfo}>
-                      <Text style={styles.transferTitle} numberOfLines={1}>{task.title}</Text>
-                      <Text style={styles.transferStatus}>
-                        {task.status === 'pending' && 'Na Fila...'}
-                        {task.status === 'downloading' && `Baixando... ${task.progress}%`}
-                        {task.status === 'completed' && 'Concluído'}
-                        {task.status === 'failed' && `Falhou: ${task.error || 'Erro de conexão'}`}
+                {activeSettingsSection === 'perfil' && (
+                  <View style={{ marginTop: 12 }}>
+                    <View style={{ marginBottom: 16, paddingHorizontal: 4 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '900', color: '#8B5CF6', letterSpacing: 1.5 }}>
+                        PERFIL DO USUÁRIO
+                      </Text>
+                      <Text style={{ fontSize: 9, color: '#475569', marginTop: 2 }}>
+                        Suas informações de conta e nível de membro
                       </Text>
                     </View>
 
-                    {/* Mini progress track */}
-                    <View style={styles.progressBarTrack}>
-                      <View 
-                        style={[
-                          styles.progressBarFill, 
-                          task.status === 'completed' && { backgroundColor: '#10B981' },
-                          task.status === 'failed' && { backgroundColor: '#EF4444' },
-                          { width: `${task.progress}%` }
-                        ]} 
+                    {/* User profile card */}
+                    <View style={styles.profileCard}>
+                      <Image 
+                        source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80' }} 
+                        style={styles.profileAvatar} 
                       />
+                      <Text style={styles.profileName}>Lucas Alves</Text>
+                      <Text style={styles.profileEmail}>lucas@email.com</Text>
+                      <View style={styles.badgeRow}>
+                        <View style={styles.badgeClassic}>
+                          <Text style={styles.badgeClassicText}>Membro Clássico</Text>
+                        </View>
+                      </View>
                     </View>
                   </View>
-                ))}
-              </View>
-            )}
-
-            {/* User profile card */}
-            <View style={styles.profileCard}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80' }} 
-                style={styles.profileAvatar} 
-              />
-              <Text style={styles.profileName}>Lucas Alves</Text>
-              <Text style={styles.profileEmail}>lucas@email.com</Text>
-              <View style={styles.badgeRow}>
-                <View style={styles.badgeClassic}>
-                  <Text style={styles.badgeClassicText}>Membro Clássico</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* System / App Info */}
-            <View style={styles.glassPanel}>
-              <Text style={styles.cardTitle}>Informações do Sistema</Text>
-              <View style={styles.infoTextRow}>
-                <Text style={styles.infoLabel}>Versão do App</Text>
-                <Text style={styles.infoVal}>v1.0.0 (SDK 54)</Text>
-              </View>
-              <View style={styles.infoTextRow}>
-                <Text style={styles.infoLabel}>Plataforma</Text>
-                <Text style={styles.infoVal}>{Platform.OS.toUpperCase()}</Text>
-              </View>
-              <View style={styles.infoTextRow}>
-                <Text style={styles.infoLabel}>Diretório de Música</Text>
-                <Text style={styles.infoVal}>SoundSync Local Folder</Text>
-              </View>
-            </View>
-
-            {/* Monitor Folder status moved to Options */}
-            <View style={[styles.glassPanel, { marginTop: 12, marginBottom: 24 }]}>
-              <View style={styles.infoTitleRow}>
-                <FolderOpen size={16} color="#8B5CF6" />
-                <Text style={styles.infoTitleText}>Diretório Local Monitorado</Text>
-              </View>
-              <Text style={styles.infoPathText}>
-                {MUSIC_DIR.replace(FileSystem.documentDirectory || '', 'Interno://')}
-              </Text>
-              <TouchableOpacity style={styles.refreshFolderBtn} onPress={scanLocalFolder} disabled={isScanning}>
-                {isScanning ? <ActivityIndicator size="small" color="#FFF" /> : (
-                  <>
-                    <RefreshCw size={14} color="#FFF" />
-                    <Text style={styles.refreshFolderBtnText}>Atualizar Pasta Local</Text>
-                  </>
                 )}
-              </TouchableOpacity>
-            </View>
+
+                {activeSettingsSection === 'conexao' && (
+                  <View style={{ marginTop: 12 }}>
+                    <View style={{ marginBottom: 16, paddingHorizontal: 4 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '900', color: '#8B5CF6', letterSpacing: 1.5 }}>
+                        CONEXÃO E PAREAMENTO (WI-FI SYNC)
+                      </Text>
+                      <Text style={{ fontSize: 9, color: '#475569', marginTop: 2 }}>
+                        Sincronize músicas locais do seu PC via rede Wi-Fi local
+                      </Text>
+                    </View>
+
+                    {/* Connection and Pairing form */}
+                    {!device ? (
+                      <View style={styles.glassPanel}>
+                        <Text style={styles.cardTitle}>Conectar ao PC (Wi-Fi Sync)</Text>
+                        <Text style={styles.cardText}>
+                          Digite o IP exibido na aba Dispositivos do seu aplicativo desktop e o código PIN de 6 dígitos gerado pelo computador para autorizar downloads sem fio.
+                        </Text>
+
+                        <View style={styles.inputGroup}>
+                          <Text style={styles.inputLabel}>Endereço IP do Computador</Text>
+                          <TextInput
+                            style={styles.textInput}
+                            placeholder="Ex: 192.168.1.15"
+                            placeholderTextColor="#475569"
+                            value={pairingIp}
+                            onChangeText={setPairingIp}
+                            keyboardType="default"
+                          />
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                          <Text style={styles.inputLabel}>Código PIN do Servidor (6 Dígitos)</Text>
+                          <TextInput
+                            style={styles.textInput}
+                            placeholder="Ex: 123 456"
+                            placeholderTextColor="#475569"
+                            value={pairingCode}
+                            onChangeText={setPairingCode}
+                            keyboardType="numeric"
+                            maxLength={7}
+                          />
+                        </View>
+
+                        {pairingError ? <Text style={styles.errorText}>{pairingError}</Text> : null}
+                        {pairingSuccess ? <Text style={styles.successText}>{pairingSuccess}</Text> : null}
+
+                        <TouchableOpacity 
+                          style={[styles.pairActionBtn, isPairing && { opacity: 0.7 }]} 
+                          onPress={handlePair}
+                          disabled={isPairing}
+                        >
+                          {isPairing ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                          ) : (
+                            <>
+                              <Smartphone size={16} color="#FFF" />
+                              <Text style={styles.pairActionBtnText}>Conectar ao Computador</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={styles.glassPanel}>
+                        <Text style={styles.cardTitle}>Computador Pareado</Text>
+                        <View style={styles.deviceStatusRow}>
+                          <View style={styles.deviceIndicatorActive} />
+                          <Text style={styles.pairedDeviceName}>{device.name}</Text>
+                          <Text style={styles.connectionTypeTag}>Wi-Fi LAN</Text>
+                        </View>
+                        
+                        <Text style={styles.deviceIpAddressText}>Endereço IP: {device.ipAddress}</Text>
+
+                        <View style={styles.deviceActionBox}>
+                          <TouchableOpacity 
+                            style={[styles.syncDeltaBtn, isSyncing && { opacity: 0.7 }]} 
+                            onPress={pullTransfersFromPC}
+                            disabled={isSyncing}
+                          >
+                            {isSyncing ? (
+                              <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                              <>
+                                <ArrowDownToLine size={16} color="#FFF" />
+                                <Text style={styles.syncDeltaBtnText}>Puxar Músicas Autorizadas</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+
+                          <TouchableOpacity 
+                            style={styles.disconnectBtn} 
+                            onPress={disconnectDevice}
+                          >
+                            <Text style={styles.disconnectBtnText}>Remover Conexão</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Active WiFi File Transfer logs */}
+                    {transferQueue.length > 0 && (
+                      <View style={styles.glassPanel}>
+                        <Text style={styles.cardTitle}>Fila de Transferência Ativa</Text>
+                        
+                        {transferQueue.map(task => (
+                          <View key={task.id} style={styles.transferRow}>
+                            <View style={styles.transferInfo}>
+                              <Text style={styles.transferTitle} numberOfLines={1}>{task.title}</Text>
+                              <Text style={styles.transferStatus}>
+                                {task.status === 'pending' && 'Na Fila...'}
+                                {task.status === 'downloading' && `Baixando... ${task.progress}%`}
+                                {task.status === 'completed' && 'Concluído'}
+                                {task.status === 'failed' && `Falhou: ${task.error || 'Erro de conexão'}`}
+                              </Text>
+                            </View>
+
+                            {/* Mini progress track */}
+                            <View style={styles.progressBarTrack}>
+                              <View 
+                                style={[
+                                  styles.progressBarFill, 
+                                  task.status === 'completed' && { backgroundColor: '#10B981' },
+                                  task.status === 'failed' && { backgroundColor: '#EF4444' },
+                                  { width: `${task.progress}%` }
+                                ]} 
+                              />
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {activeSettingsSection === 'arquivos' && (
+                  <View style={{ marginTop: 12 }}>
+                    <View style={{ marginBottom: 16, paddingHorizontal: 4 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '900', color: '#8B5CF6', letterSpacing: 1.5 }}>
+                        GERENCIAMENTO DE ARQUIVOS
+                      </Text>
+                      <Text style={{ fontSize: 9, color: '#475569', marginTop: 2 }}>
+                        Verifique os caminhos monitorados e atualize a pasta local
+                      </Text>
+                    </View>
+
+                    {/* Monitor Folder status */}
+                    <View style={styles.glassPanel}>
+                      <View style={styles.infoTitleRow}>
+                        <FolderOpen size={16} color="#8B5CF6" />
+                        <Text style={styles.infoTitleText}>Diretório Local Monitorado</Text>
+                      </View>
+                      <Text style={styles.infoPathText}>
+                        {MUSIC_DIR.replace(FileSystem.documentDirectory || '', 'Interno://')}
+                      </Text>
+                      <TouchableOpacity style={styles.refreshFolderBtn} onPress={scanLocalFolder} disabled={isScanning}>
+                        {isScanning ? <ActivityIndicator size="small" color="#FFF" /> : (
+                          <>
+                            <RefreshCw size={14} color="#FFF" />
+                            <Text style={styles.refreshFolderBtnText}>Atualizar Pasta Local</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {activeSettingsSection === 'sistema' && (
+                  <View style={{ marginTop: 12 }}>
+                    <View style={{ marginBottom: 16, paddingHorizontal: 4 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '900', color: '#8B5CF6', letterSpacing: 1.5 }}>
+                        SOBRE O SISTEMA
+                      </Text>
+                      <Text style={{ fontSize: 9, color: '#475569', marginTop: 2 }}>
+                        Informações técnicas e versão do ecossistema
+                      </Text>
+                    </View>
+
+                    {/* System / App Info */}
+                    <View style={[styles.glassPanel, { marginBottom: 24 }]}>
+                      <Text style={styles.cardTitle}>Informações do Sistema</Text>
+                      <View style={styles.infoTextRow}>
+                        <Text style={styles.infoLabel}>Versão do App</Text>
+                        <Text style={styles.infoVal}>v1.0.0 (SDK 54)</Text>
+                      </View>
+                      <View style={styles.infoTextRow}>
+                        <Text style={styles.infoLabel}>Plataforma</Text>
+                        <Text style={styles.infoVal}>{Platform.OS.toUpperCase()}</Text>
+                      </View>
+                      <View style={styles.infoTextRow}>
+                        <Text style={styles.infoLabel}>Diretório de Música</Text>
+                        <Text style={styles.infoVal}>SoundSync Local Folder</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
           </ScrollView>
         )}
 
@@ -3316,5 +3459,73 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+
+  // ─── Settings Navigability & Sections ──────────────────────────────────
+  settingsMenuContainer: {
+    marginTop: 8,
+  },
+  settingsMenuItem: {
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  settingsMenuIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  settingsMenuTextContainer: {
+    flex: 1,
+  },
+  settingsMenuTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'sans-serif-medium',
+  },
+  settingsMenuSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  settingsSubHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    marginTop: Platform.OS === 'android' ? 12 : 0,
+  },
+  settingsBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  settingsBackButtonText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  settingsSubHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFF',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Text' : 'sans-serif-medium',
   },
 });
