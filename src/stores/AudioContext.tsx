@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Device from 'expo-device';
 
 export interface Track {
   id: string;
@@ -484,13 +485,34 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const cleanIp = ip.trim().replace("http://", "").replace("https://", "");
     const url = `http://${cleanIp}`;
 
+    // Fetch real device hardware name
+    const deviceName = Device.deviceName || Device.modelName || 'Dispositivo Móvel';
+
+    // Fetch real mobile disk storage statistics (total & used)
+    let storageTotalGB = 128.0;
+    let storageUsedGB = 42.5;
+    try {
+      const totalBytes = await FileSystem.getTotalDiskCapacityAsync();
+      const freeBytes = await FileSystem.getFreeDiskStorageAsync();
+      const totalGB = totalBytes / (1024 * 1024 * 1024);
+      const freeGB = freeBytes / (1024 * 1024 * 1024);
+      
+      storageTotalGB = parseFloat(totalGB.toFixed(1));
+      storageUsedGB = parseFloat((totalGB - freeGB).toFixed(1));
+      console.log(`[Storage Sync] Encontrado espaço Total: ${storageTotalGB}GB, Usado: ${storageUsedGB}GB`);
+    } catch (e) {
+      console.warn("Falha ao recuperar espaço em disco via FileSystem:", e);
+    }
+
     try {
       const response = await fetch(`${url}/api/pair`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pin: pin.trim(),
-          device_name: 'iPhone/Android Local client'
+          device_name: deviceName,
+          storage_total: storageTotalGB,
+          storage_used: storageUsedGB,
         })
       });
 

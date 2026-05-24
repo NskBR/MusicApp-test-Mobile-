@@ -14,7 +14,8 @@ import {
   SafeAreaView, 
   Platform,
   Animated,
-  StatusBar
+  StatusBar,
+  PanResponder
 } from 'react-native';
 import { 
   Play, 
@@ -55,6 +56,7 @@ import {
 } from 'lucide-react-native';
 import { useAudio, Track, MUSIC_DIR } from '../stores/AudioContext';
 import * as FileSystem from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -174,6 +176,99 @@ export default function HomeScreen() {
   const [pairingError, setPairingError] = useState('');
   const [pairingSuccess, setPairingSuccess] = useState('');
 
+  // Favorites and Play counts tracking
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const storedFavs = await AsyncStorage.getItem('soundsync_favorites');
+        if (storedFavs) {
+          setFavorites(JSON.parse(storedFavs));
+        }
+        const storedCounts = await AsyncStorage.getItem('soundsync_play_counts');
+        if (storedCounts) {
+          setPlayCounts(JSON.parse(storedCounts));
+        }
+      } catch (e) {
+        console.error("Failed to load user data:", e);
+      }
+    };
+    loadUserData();
+  }, []);
+
+  const toggleFavorite = async (trackId: string) => {
+    try {
+      const nextFavs = favorites.includes(trackId)
+        ? favorites.filter(id => id !== trackId)
+        : [...favorites, trackId];
+      setFavorites(nextFavs);
+      await AsyncStorage.setItem('soundsync_favorites', JSON.stringify(nextFavs));
+    } catch (e) {
+      console.error("Failed to toggle favorite:", e);
+    }
+  };
+
+  // Track play count and save to AsyncStorage
+  useEffect(() => {
+    if (currentTrack && currentTrack.id !== 'placeholder') {
+      const incrementPlayCount = async () => {
+        try {
+          const storedCounts = await AsyncStorage.getItem('soundsync_play_counts');
+          const counts = storedCounts ? JSON.parse(storedCounts) : {};
+          const trackId = currentTrack.id;
+          counts[trackId] = (counts[trackId] || 0) + 1;
+          await AsyncStorage.setItem('soundsync_play_counts', JSON.stringify(counts));
+          setPlayCounts(counts);
+        } catch (e) {
+          console.error("Failed to update play count:", e);
+        }
+      };
+      incrementPlayCount();
+    }
+  }, [currentTrack]);
+
+  const getMostPlayed = () => {
+    const playedTracks = libraryTracks.filter(t => (playCounts[t.id] || 0) > 0);
+    if (playedTracks.length > 0) {
+      return [...playedTracks].sort((a, b) => (playCounts[b.id] || 0) - (playCounts[a.id] || 0)).slice(0, 5);
+    }
+    return libraryTracks.slice(0, 5);
+  };
+
+  const getFavorites = () => {
+    return libraryTracks.filter(t => favorites.includes(t.id)).slice(0, 5);
+  };
+
+  const sidebarWidth = width * 0.8;
+  const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
+
+  const sidebarPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Intercept touch if dragging horizontally to the left
+        return Math.abs(gestureState.dx) > 8 && gestureState.dx < 0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newX = Math.max(-sidebarWidth, Math.min(0, gestureState.dx));
+        sidebarAnim.setValue(newX);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -sidebarWidth * 0.3 || gestureState.vx < -0.3) {
+          setShowSidebar(false);
+        } else {
+          Animated.timing(sidebarAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true
+          }).start();
+        }
+      }
+    })
+  ).current;
+
   const activeTrack = currentTrack || {
     id: 'placeholder',
     title: 'Selecione uma música',
@@ -199,8 +294,6 @@ export default function HomeScreen() {
 
   // Sidebar Drawer states and animations
   const [showSidebar, setShowSidebar] = useState(false);
-  const sidebarWidth = width * 0.8;
-  const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
 
   useEffect(() => {
     if (showSidebar) {
@@ -936,6 +1029,7 @@ export default function HomeScreen() {
             transform: [{ translateX: sidebarAnim }] 
           }
         ]}
+        {...sidebarPanResponder.panHandlers}
       >
         <SafeAreaView style={styles.sidebarSafeArea}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sidebarScrollContent}>
@@ -1008,65 +1102,71 @@ export default function HomeScreen() {
 
             {/* MAIS REPRODUZIDAS Section */}
             <Text style={styles.sidebarSectionTitle}>MAIS REPRODUZIDAS</Text>
-            {MOCK_RECENT_ADDITIONS.slice(0, 5).map(track => (
-              <TouchableOpacity 
-                key={track.id} 
-                style={styles.sidebarTrackRow}
-                onPress={() => {
-                  playTrack({
-                    id: track.id,
-                    title: track.title,
-                    artist: track.artist,
-                    album: 'Popular',
-                    duration: 210,
-                    format: 'MP3',
-                    bitrate: 320,
-                    fileSize: 5000000,
-                    lastModified: Date.now(),
-                    artworkUrl: track.art
-                  });
-                  setShowSidebar(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Image source={{ uri: track.art }} style={styles.sidebarTrackArt} />
-                <View style={styles.sidebarTrackDetails}>
-                  <Text style={styles.sidebarTrackTitle} numberOfLines={1}>{track.title}</Text>
-                  <Text style={styles.sidebarTrackArtist} numberOfLines={1}>{track.artist}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {libraryTracks.length === 0 ? (
+              <Text style={{ fontSize: 10, color: '#64748B', paddingLeft: 16, paddingVertical: 8, fontStyle: 'italic' }}>
+                Nenhuma música na biblioteca local
+              </Text>
+            ) : getMostPlayed().length === 0 ? (
+              <Text style={{ fontSize: 10, color: '#64748B', paddingLeft: 16, paddingVertical: 8, fontStyle: 'italic' }}>
+                Nenhuma música reproduzida ainda
+              </Text>
+            ) : (
+              getMostPlayed().map(track => (
+                <TouchableOpacity 
+                  key={track.id} 
+                  style={styles.sidebarTrackRow}
+                  onPress={() => {
+                    playTrack(track);
+                    setShowSidebar(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Image 
+                    source={{ uri: track.artworkUrl }} 
+                    style={styles.sidebarTrackArt} 
+                    defaultSource={require('@/assets/images/react-logo.png')}
+                  />
+                  <View style={styles.sidebarTrackDetails}>
+                    <Text style={styles.sidebarTrackTitle} numberOfLines={1}>{track.title}</Text>
+                    <Text style={styles.sidebarTrackArtist} numberOfLines={1}>{track.artist}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
 
             {/* FAVORITOS Section */}
             <Text style={styles.sidebarSectionTitle}>FAVORITOS</Text>
-            {MOCK_RECENT_ADDITIONS.slice(6, 9).map(track => (
-              <TouchableOpacity 
-                key={track.id} 
-                style={styles.sidebarTrackRow}
-                onPress={() => {
-                  playTrack({
-                    id: track.id,
-                    title: track.title,
-                    artist: track.artist,
-                    album: 'Favorito',
-                    duration: 210,
-                    format: 'MP3',
-                    bitrate: 320,
-                    fileSize: 5000000,
-                    lastModified: Date.now(),
-                    artworkUrl: track.art
-                  });
-                  setShowSidebar(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Image source={{ uri: track.art }} style={styles.sidebarTrackArt} />
-                <View style={styles.sidebarTrackDetails}>
-                  <Text style={styles.sidebarTrackTitle} numberOfLines={1}>{track.title}</Text>
-                  <Text style={styles.sidebarTrackArtist} numberOfLines={1}>{track.artist}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {libraryTracks.length === 0 ? (
+              <Text style={{ fontSize: 10, color: '#64748B', paddingLeft: 16, paddingVertical: 8, fontStyle: 'italic' }}>
+                Nenhuma música na biblioteca local
+              </Text>
+            ) : getFavorites().length === 0 ? (
+              <Text style={{ fontSize: 10, color: '#64748B', paddingLeft: 16, paddingVertical: 8, fontStyle: 'italic' }}>
+                Toque no coração no player para favoritar
+              </Text>
+            ) : (
+              getFavorites().map(track => (
+                <TouchableOpacity 
+                  key={track.id} 
+                  style={styles.sidebarTrackRow}
+                  onPress={() => {
+                    playTrack(track);
+                    setShowSidebar(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Image 
+                    source={{ uri: track.artworkUrl }} 
+                    style={styles.sidebarTrackArt} 
+                    defaultSource={require('@/assets/images/react-logo.png')}
+                  />
+                  <View style={styles.sidebarTrackDetails}>
+                    <Text style={styles.sidebarTrackTitle} numberOfLines={1}>{track.title}</Text>
+                    <Text style={styles.sidebarTrackArtist} numberOfLines={1}>{track.artist}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
 
           </ScrollView>
         </SafeAreaView>
@@ -1149,10 +1249,23 @@ export default function HomeScreen() {
                 </Animated.View>
               </View>
 
-              {/* Metadata Details (Left-aligned as in the print) */}
-              <View style={styles.playerMetaDetails}>
-                <Text style={styles.playerMetaTitle} numberOfLines={1}>{currentTrack.title}</Text>
-                <Text style={styles.playerMetaArtist} numberOfLines={1}>{currentTrack.artist}</Text>
+              {/* Metadata Details (Left-aligned as in the print) with favorite heart button */}
+              <View style={[styles.playerMetaDetails, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 24 }]}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.playerMetaTitle} numberOfLines={1}>{currentTrack.title}</Text>
+                  <Text style={styles.playerMetaArtist} numberOfLines={1}>{currentTrack.artist}</Text>
+                </View>
+                <TouchableOpacity 
+                  onPress={() => toggleFavorite(currentTrack.id)}
+                  activeOpacity={0.7}
+                  style={{ padding: 8 }}
+                >
+                  <Heart 
+                    size={24} 
+                    color={favorites.includes(currentTrack.id) ? "#8B5CF6" : "#94A3B8"} 
+                    fill={favorites.includes(currentTrack.id) ? "#8B5CF6" : "transparent"} 
+                  />
+                </TouchableOpacity>
               </View>
 
               {/* Seek Slider Track with Inline Times */}
